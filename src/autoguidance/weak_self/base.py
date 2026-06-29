@@ -28,3 +28,10 @@ class WeakSelf(ABC):
             cond: Same conditioning as the full model pass.
             adapter: The ModelAdapter for the full model.
         """
+
+    def unavailable_reason(self, adapter: ModelAdapter) -> Optional[str]:
+        """Return a human-readable reason if this construction cannot run on
+        ``adapter``, else None. Checked once before the sample loop so the whole
+        construction is skipped cleanly instead of raising per-sample.
+        """
+        return None

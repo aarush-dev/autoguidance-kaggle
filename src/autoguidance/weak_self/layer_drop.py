@@ -53,6 +53,12 @@ class LayerDropWeakSelf(WeakSelf):
             raise ValueError("layer_drop k must be ≥ 1")
         self.k = k
 
+    def unavailable_reason(self, adapter: ModelAdapter) -> Optional[str]:
+        n = adapter.n_layers
+        if self.k >= n:
+            return f"cannot drop k={self.k} of only {n} layers (would leave none)"
+        return None
+
     def __call__(
         self,
         x_t: LongTensor,

@@ -156,6 +156,14 @@ def run_characterization(
                   f"(adapter.supports_embed_noise=False)")
             continue
 
+        # One-time capability probe: skip the whole construction cleanly instead
+        # of raising on every sample (e.g. layer_drop k>=n_layers, reduced_expert
+        # on a non-MoE model).
+        reason = weak_self.unavailable_reason(adapter)
+        if reason is not None:
+            print(f"  [skip] {name} unavailable on this adapter: {reason}")
+            continue
+
         # Per-masked-position reduced quantities only — never [N, L, vocab].
         ent_full, ent_weak = [], []
         full_top1, weak_top1 = [], []

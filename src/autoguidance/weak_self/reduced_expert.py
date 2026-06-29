@@ -25,6 +25,11 @@ class ReducedExpertWeakSelf(WeakSelf):
             raise ValueError("reduced_expert top_k must be ≥ 1")
         self.top_k = top_k
 
+    def unavailable_reason(self, adapter: ModelAdapter) -> Optional[str]:
+        if not getattr(adapter, "is_moe", False):
+            return "adapter is not MoE (is_moe=False); reduced-expert routing is unavailable"
+        return None
+
     def __call__(
         self,
         x_t: LongTensor,
