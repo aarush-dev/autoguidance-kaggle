@@ -1,0 +1,54 @@
+seed: 42
+device_main: "cuda:0"
+device_eval: "cuda:0"
+device_cpu: "cpu"
+precision: "bf16"
+dtype: "bfloat16"
+batch_size: 8
+max_seq_len: 256
+transformers_variant: "tf5"
+
+# Phase 0 specific
+n_samples: 200
+mask_rate: 0.5
+constructions:
+  - "input_noise_remask"
+  - "input_noise_gauss"
+  - "low_nfe"
+  - "layer_drop"
+  - "inference_dropout"
+  - "reduced_expert"
+
+# Construction A: input noise remask
+noise_rate_remask: 0.20
+
+# Construction A: input noise Gaussian
+noise_sigma_gauss: 0.1
+
+# Construction B: low NFE
+low_nfe_steps: 1
+
+# Construction C: layer drop
+layer_drop_k: 2
+
+# Construction D: inference dropout
+dropout_p: 0.1
+
+# Construction E: reduced expert (DiffusionGemma MoE)
+reduced_expert_topk: 4
+
+# Pass thresholds
+check1_entropy_fraction: 0.80
+check2_top1_agreement: 0.60
+check2_spearman_rho: 0.50
+check3_pearson_r: 0.20
+check3_precision: 0.50
+
+# Sweep grids (used by sweep.py — no model re-run for full pass)
+sweep_remask_rate: [0.2, 0.25, 0.3, 0.35, 0.4]
+sweep_gauss_sigma: [0.1, 0.2, 0.3, 0.5]
+sweep_layer_drop_k: [1, 2, 4]
+sweep_dropout_p: [0.05, 0.1, 0.2]
+
+# Array dump directory (characterize step writes here; threshold/sweep reads here)
+arrays_dir: "/kaggle/working/phase0_arrays"

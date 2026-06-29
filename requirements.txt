@@ -1,0 +1,27 @@
+# torch with CUDA 12 support — install the cu12 wheel explicitly if not already present:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+torch
+
+# transformers variant is chosen per BaseConfig.transformers_variant:
+#   tf5   -> transformers>=5.0  (DiffusionGemma / Gemma backbone)
+#   tf446 -> transformers==4.46.*  (LLaDA-8B)
+# Leave unpinned here; the Kaggle runner installs from the local wheels dataset
+# matching the selected variant.
+transformers
+
+accelerate==1.1.1
+datasets==3.1.0
+evaluate==0.4.3
+scipy==1.14.1
+matplotlib==3.9.3
+numpy==1.26.4
+pyyaml==6.0.2
+pytest==8.3.4
+tqdm==4.67.1
+safetensors==0.4.5
+mauve-text==0.3.0
+nltk==3.9.1
+sentencepiece==0.2.0
+protobuf==5.28.3
+huggingface_hub
+kaggle

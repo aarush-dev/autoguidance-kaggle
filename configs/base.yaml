@@ -1,0 +1,12 @@
+seed: 42
+device_main: "cuda:0"      # RTX PRO 6000 96GB — all inference
+device_eval: "cuda:0"      # same GPU for scorer and MAUVE
+device_cpu: "cpu"
+precision: "bf16"          # bfloat16 only — no fp16/4bit/8bit/offload
+dtype: "bfloat16"
+batch_size: 8
+max_seq_len: 256
+# Selects transformers wheel variant for Kaggle offline installs:
+#   tf5   -> transformers 5.x  (DiffusionGemma / Gemma backbone)
+#   tf446 -> transformers 4.46.x  (LLaDA-8B)
+transformers_variant: "tf5"

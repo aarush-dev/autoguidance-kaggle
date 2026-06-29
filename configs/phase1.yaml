@@ -1,0 +1,31 @@
+seed: 42
+device_main: "cuda:0"
+device_eval: "cuda:0"
+device_cpu: "cpu"
+precision: "bf16"
+dtype: "bfloat16"
+batch_size: 8
+max_seq_len: 256
+transformers_variant: "tf446"
+
+# Phase 1 specific
+n_samples: 100
+nfe_ladder: [4, 8, 16, 32, 64, 128, 256]
+decoders:
+  - "unguided"
+  - "cfg"
+  - "acfg"
+
+# CFG / A-CFG
+cfg_weight: 2.0
+acfg_threshold: 0.3
+
+# Dataset
+dataset: "wikitext"
+dataset_split: "validation"
+
+# Eval
+sudoku_n_puzzles: 100
+self_bleu_n_pairs: 100
+mauve_max_text: 1000
+scorer_model: "gpt2-large"
