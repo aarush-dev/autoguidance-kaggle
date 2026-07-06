@@ -43,12 +43,13 @@ def _resolve_source(cfg, model_path: Optional[str]) -> tuple:
 def _load_model(source: str, local: bool, device_main: str):
     from transformers import AutoModel, AutoTokenizer
 
+    # LLaDA's remote modeling doesn't implement SDPA; it only supports eager attn.
     model = AutoModel.from_pretrained(
         source,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         device_map={"": device_main},
-        attn_implementation="sdpa",
+        attn_implementation="eager",
         local_files_only=local,
     ).eval()
     tokenizer = AutoTokenizer.from_pretrained(
@@ -87,7 +88,7 @@ class LLaDAAdapter(ModelAdapter):
         device_main = getattr(cfg, "device_main", "cuda:0")
         source, local = _resolve_source(cfg, model_path)
         print(f"[LLaDAAdapter] Loading {source!r} (local={local}) "
-              f"@ bf16 on {device_main} (attn=sdpa, device_map={{'':{device_main!r}}}) …")
+              f"@ bf16 on {device_main} (attn=eager, device_map={{'':{device_main!r}}}) …")
         self._model, self._tokenizer = _load_model(source, local, device_main)
         self._device = torch.device(device_main)
         # Resolve + cache the decoder layer stack for layer-drop.
