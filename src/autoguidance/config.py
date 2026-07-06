@@ -33,13 +33,19 @@ class KaggleConfig:
     temp_root: str = "/kaggle/temp"
     work_root: str = "/kaggle/working"
 
-    slug_llada: str = "aarush-dev/autoguidance-llada-8b"
-    slug_diffusiongemma: str = "aarush-dev/autoguidance-diffusiongemma"
-    slug_gpt2_scorer: str = "aarush-dev/autoguidance-gpt2-large"
-    slug_mauve: str = "aarush-dev/autoguidance-mauve"
-    slug_wheels: str = "aarush-dev/autoguidance-wheels"
-    slug_hfdata: str = "aarush-dev/autoguidance-hfdata"
-    slug_code: str = "aarush-dev/autoguidance-code"
+    # Model weights are attached as Kaggle *Models* (Add Input -> Models): plain
+    # read-only dirs at fixed mount paths, already offline. No tar extraction.
+    path_llada: str = "/kaggle/input/models/mengaidev/llada/transformers/8b-base/1"
+    path_diffusiongemma: str = (
+        "/kaggle/input/models/google/diffusiongemma/transformers/diffusiongemma-26b-a4b-it/1"
+    )
+
+    # Support data attached as Kaggle *Datasets* (owner: aarushmahajan).
+    slug_gpt2_scorer: str = "aarushmahajan/autoguidance-gpt2-large"
+    slug_mauve: str = "aarushmahajan/autoguidance-mauve-feat"
+    slug_wheels: str = "aarushmahajan/autoguidance-wheels"
+    slug_hfdata: str = "aarushmahajan/autoguidance-hfdata"
+    slug_code: str = "aarushmahajan/autoguidance-code"
 
     def local_dir(self, slug: str) -> str:
         """Extracted/usable temp path for a dataset slug.
