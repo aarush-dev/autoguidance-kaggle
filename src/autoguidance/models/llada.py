@@ -89,6 +89,14 @@ def _load_model(source: str, local: bool, device_main: str):
     if model is None:
         model = AutoModel.from_pretrained(source, **common).eval()
 
+    # LLaDAConfig doesn't set the transformers-standard config flags the runtime
+    # reads during forward (LLaDA is a diffusion LM — no KV cache). Fill safe
+    # defaults so `config.use_cache` & friends don't AttributeError mid-forward.
+    for _attr, _default in (("use_cache", False), ("output_attentions", False),
+                            ("output_hidden_states", False)):
+        if not hasattr(model.config, _attr):
+            setattr(model.config, _attr, _default)
+
     tokenizer = AutoTokenizer.from_pretrained(
         source, trust_remote_code=True, local_files_only=local
     )
