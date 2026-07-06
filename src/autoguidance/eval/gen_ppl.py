@@ -6,6 +6,7 @@ Uses fp16 to fit in 8 GB VRAM.
 """
 from __future__ import annotations
 from typing import List
+import os
 
 import torch
 import numpy as np
@@ -18,12 +19,14 @@ def _get_scorer(model_name: str, device: str):
     key = (model_name, device)
     if key not in _scorer_cache:
         from transformers import AutoTokenizer, AutoModelForCausalLM
-        tok = AutoTokenizer.from_pretrained(model_name)
+        local = os.path.isdir(model_name)   # local Kaggle mount -> offline load
+        tok = AutoTokenizer.from_pretrained(model_name, local_files_only=local)
         if tok.pad_token is None:
             tok.pad_token = tok.eos_token
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
+            local_files_only=local,
         ).to(device).eval()
         _scorer_cache[key] = (tok, model)
     return _scorer_cache[key]

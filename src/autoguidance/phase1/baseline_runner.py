@@ -19,13 +19,11 @@ from autoguidance.eval.task_accuracy import make_sudoku_batch, sudoku_accuracy
 def _load_prompts(cfg, n: int) -> List[str]:
     """Load n open-ended prompts from WikiText-103."""
     try:
-        from datasets import load_dataset
-        ds = load_dataset("wikitext", "wikitext-103-v1", split=cfg.dataset_split, streaming=True)
+        from autoguidance.paths import iter_wikitext_texts
         prompts = []
-        for ex in ds:
-            t = ex["text"].strip()
+        for raw in iter_wikitext_texts(cfg, cfg.dataset_split):
             # Use first ~30 tokens of each passage as the prompt
-            words = t.split()
+            words = raw.strip().split()
             if len(words) >= 30:
                 prompts.append(" ".join(words[:30]))
             if len(prompts) >= n:
@@ -42,11 +40,10 @@ def _load_prompts(cfg, n: int) -> List[str]:
 def _load_reference_texts(cfg) -> List[str]:
     """Load human reference texts for MAUVE."""
     try:
-        from datasets import load_dataset
-        ds = load_dataset("wikitext", "wikitext-103-v1", split="validation", streaming=True)
+        from autoguidance.paths import iter_wikitext_texts
         refs = []
-        for ex in ds:
-            t = ex["text"].strip()
+        for raw in iter_wikitext_texts(cfg, "validation"):
+            t = raw.strip()
             if len(t.split()) >= 20:
                 refs.append(t)
             if len(refs) >= cfg.mauve_max_text:
@@ -110,7 +107,7 @@ def run_baselines(adapter: ModelAdapter, cfg) -> List[Dict[str, Any]]:
                 from autoguidance.eval.gen_ppl import generative_perplexity
                 gen_ppl = generative_perplexity(
                     generated,
-                    scorer_model=cfg.scorer_model,
+                    scorer_model=(getattr(cfg, "scorer_path", "") or cfg.scorer_model),
                     device=cfg.device_eval,
                 )
             except Exception as e:
@@ -125,6 +122,7 @@ def run_baselines(adapter: ModelAdapter, cfg) -> List[Dict[str, Any]]:
                     reference_texts,
                     device_id=int(cfg.device_eval.split(":")[-1]),
                     max_text=cfg.mauve_max_text,
+                    featurize_model_name=(getattr(cfg, "mauve_path", "") or "gpt2-large"),
                 )
             except Exception as e:
                 print(f"\n    [MAUVE error] {e}")

@@ -47,6 +47,27 @@ def resolve_mount(kaggle_cfg, slug: str) -> str:
     return path
 
 
+def iter_wikitext_texts(cfg, split: str):
+    """Yield raw 'text' fields of WikiText-103, offline-first.
+
+    If cfg.hfdata_path is set, read the save_to_disk DatasetDict at
+    <hfdata_path>/wikitext-103-v1 (offline, no network). Otherwise stream from
+    the hub (dev/online). Callers apply their own length filters and early break.
+    """
+    hf = getattr(cfg, "hfdata_path", "") or ""
+    if hf:
+        from datasets import load_from_disk
+        ds = load_from_disk(os.path.join(hf, "wikitext-103-v1"))
+        rows = ds[split] if hasattr(ds, "keys") else ds
+        for r in rows:
+            yield r["text"]
+        return
+    from datasets import load_dataset
+    ds = load_dataset("wikitext", "wikitext-103-v1", split=split, streaming=True)
+    for ex in ds:
+        yield ex["text"]
+
+
 def ensure_extracted(tar_or_dir: str, dest: str) -> str:
     """Return a usable directory for a dataset payload.
 

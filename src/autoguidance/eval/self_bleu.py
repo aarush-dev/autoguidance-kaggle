@@ -10,11 +10,16 @@ import random
 import nltk
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
-# Download punkt tokenizer on first use
+# punkt is expected under NLTK_DATA (bundled offline in the hfdata mount). Only
+# attempt a download if it is genuinely missing, and never let that break import
+# in an offline environment.
 try:
     nltk.data.find("tokenizers/punkt")
 except LookupError:
-    nltk.download("punkt", quiet=True)
+    try:
+        nltk.download("punkt", quiet=True)
+    except Exception:
+        pass
 
 
 def self_bleu(texts: List[str], n_pairs: int = 100, seed: int = 42) -> float:

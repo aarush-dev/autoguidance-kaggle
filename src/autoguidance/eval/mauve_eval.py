@@ -30,7 +30,10 @@ def compute_mauve(
     Returns:
         MAUVE score in [0, 1] (higher = more human-like = more diverse).
     """
-    import evaluate
+    # Use the mauve-text package directly (offline-capable with a local
+    # featurizer dir); the `evaluate` metric wrapper needs network + an extra dep
+    # that is not in the offline wheelhouse.
+    import mauve
 
     gen = generated_texts[:max_text]
     ref = reference_texts[:max_text]
@@ -41,11 +44,11 @@ def compute_mauve(
         return 0.0
     gen, ref = gen[:n], ref[:n]
 
-    mauve_metric = evaluate.load("mauve")
-    result = mauve_metric.compute(
-        predictions=gen,
-        references=ref,
+    out = mauve.compute_mauve(
+        p_text=gen,
+        q_text=ref,
         device_id=device_id,
         featurize_model_name=featurize_model_name,
+        verbose=False,
     )
-    return float(result.mauve)
+    return float(out.mauve)

@@ -57,11 +57,10 @@ def _load_dataset_texts(cfg, n_samples: int) -> List[str]:
     """Load n_samples text strings from the configured dataset (wikitext)."""
     split = getattr(cfg, "dataset_split", "validation")
     try:
-        from datasets import load_dataset
-        ds = load_dataset("wikitext", "wikitext-103-v1", split=split, streaming=True)
+        from autoguidance.paths import iter_wikitext_texts
         texts = []
-        for ex in ds:
-            t = ex["text"].strip()
+        for raw in iter_wikitext_texts(cfg, split):
+            t = raw.strip()
             if len(t.split()) >= 20:   # skip very short lines
                 texts.append(t)
             if len(texts) >= n_samples:

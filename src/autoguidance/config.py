@@ -19,6 +19,11 @@ class BaseConfig:
     #   "tf5"   -> transformers 5.x stack (gemma)
     #   "tf446" -> transformers 4.46 stack (llada)
     transformers_variant: str = "tf5"
+    # Local offline data/model dirs (Kaggle mounts). Empty -> online/hub fallback.
+    model_path: str = ""     # weights dir for the diffusion LM (LLaDA / DiffusionGemma)
+    hfdata_path: str = ""    # dir holding load_from_disk datasets (contains wikitext-103-v1/)
+    scorer_path: str = ""    # local gpt2-large dir for gen-ppl scorer
+    mauve_path: str = ""     # local gpt2-large dir for the MAUVE featurizer
 
 
 @dataclass
