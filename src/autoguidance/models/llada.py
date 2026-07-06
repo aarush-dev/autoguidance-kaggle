@@ -41,24 +41,54 @@ def _resolve_source(cfg, model_path: Optional[str]) -> tuple:
 
 
 def _load_model(source: str, local: bool, device_main: str):
-    from transformers import AutoModel, AutoTokenizer, PreTrainedModel
+    from transformers import AutoModel, AutoTokenizer, AutoConfig, PreTrainedModel
 
-    # transformers 5.x accesses `all_tied_weights_keys` on every model; LLaDA's
-    # remote (pre-5.x) modeling class never defines it -> AttributeError on load.
-    # LLaDA-8B does NOT tie input/output embeddings, so an empty mapping is
-    # correct. Set it on the base class so the custom subclass inherits it.
+    # LLaDA's remote modeling was written for transformers ~4.46. Under
+    # transformers 5.x, from_pretrained expects APIs the old class lacks:
+    #   * every model exposes `all_tied_weights_keys`  (5.x)
+    #   * tie_weights is called as `tie_weights(missing_keys=...)`  (5.x)
+    #   * only eager attention is implemented by the remote code
+    # We make loading work under BOTH 4.46.x and 5.x so a mismatched runtime
+    # transformers version doesn't hard-fail. LLaDA-8B-Base does not tie its
+    # input/output embeddings (separate ff_out in the checkpoint), so an empty
+    # tied-keys mapping and a kwargs-tolerant tie_weights are both correct.
     if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
         PreTrainedModel.all_tied_weights_keys = {}
 
-    # LLaDA's remote modeling doesn't implement SDPA; it only supports eager attn.
-    model = AutoModel.from_pretrained(
-        source,
+    common = dict(
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         device_map={"": device_main},
-        attn_implementation="eager",
+        attn_implementation="eager",   # remote modeling implements eager only
         local_files_only=local,
-    ).eval()
+    )
+
+    model = None
+    try:
+        # Preload the remote model class WITHOUT building it, patch tie_weights to
+        # swallow the transformers-5.x `missing_keys` (and any other) kwarg, then
+        # build. AutoModel.from_pretrained would tie mid-load before we can patch.
+        cfg = AutoConfig.from_pretrained(
+            source, trust_remote_code=True, local_files_only=local
+        )
+        amap = getattr(cfg, "auto_map", None) or {}
+        ref = amap.get("AutoModel") or amap.get("AutoModelForCausalLM")
+        if ref:
+            from transformers.dynamic_module_utils import get_class_from_dynamic_module
+            ModelClass = get_class_from_dynamic_module(ref, source, local_files_only=local)
+            if not getattr(ModelClass, "_llada_tie_patched", False):
+                _orig_tie = ModelClass.tie_weights
+                def _tie_tolerant(self, *args, **kwargs):   # drop 5.x-only kwargs
+                    return _orig_tie(self)
+                ModelClass.tie_weights = _tie_tolerant
+                ModelClass._llada_tie_patched = True
+            model = ModelClass.from_pretrained(source, config=cfg, **common).eval()
+    except Exception as e:
+        print(f"[LLaDAAdapter] remote-class tie_weights patch skipped ({type(e).__name__}: {e})")
+
+    if model is None:
+        model = AutoModel.from_pretrained(source, **common).eval()
+
     tokenizer = AutoTokenizer.from_pretrained(
         source, trust_remote_code=True, local_files_only=local
     )
