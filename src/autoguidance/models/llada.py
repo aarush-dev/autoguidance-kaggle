@@ -41,7 +41,14 @@ def _resolve_source(cfg, model_path: Optional[str]) -> tuple:
 
 
 def _load_model(source: str, local: bool, device_main: str):
-    from transformers import AutoModel, AutoTokenizer
+    from transformers import AutoModel, AutoTokenizer, PreTrainedModel
+
+    # transformers 5.x accesses `all_tied_weights_keys` on every model; LLaDA's
+    # remote (pre-5.x) modeling class never defines it -> AttributeError on load.
+    # LLaDA-8B does NOT tie input/output embeddings, so an empty mapping is
+    # correct. Set it on the base class so the custom subclass inherits it.
+    if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
+        PreTrainedModel.all_tied_weights_keys = {}
 
     # LLaDA's remote modeling doesn't implement SDPA; it only supports eager attn.
     model = AutoModel.from_pretrained(
