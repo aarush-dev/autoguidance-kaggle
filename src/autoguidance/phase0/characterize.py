@@ -100,11 +100,32 @@ def _collect_rhos(f_mask, w_mask, n_take: int, rhos: list, cap: int) -> None:
             rhos.append(r)
 
 
+def _preview_sample(adapter, name, si, masked_ids, m, ft, wt) -> None:
+    """Print decoded masked input vs full/weak top-1 reconstruction (live, ephemeral).
+
+    ft/wt are the full/weak top-1 ids at the masked positions (numpy). Rebuild the
+    two output sequences by writing those predictions back into the masked slots.
+    """
+    try:
+        mdev = m.to(masked_ids.device)
+        full_seq = masked_ids.clone()
+        weak_seq = masked_ids.clone()
+        full_seq[0, mdev] = torch.as_tensor(ft, device=masked_ids.device, dtype=masked_ids.dtype)
+        weak_seq[0, mdev] = torch.as_tensor(wt, device=masked_ids.device, dtype=masked_ids.dtype)
+        print(f"    [{name}] sample {si} preview:")
+        print(f"      input(masked): {adapter.decode(masked_ids)!r}")
+        print(f"      full  output : {adapter.decode(full_seq)!r}")
+        print(f"      weak  output : {adapter.decode(weak_seq)!r}")
+    except Exception as e:
+        print(f"    [{name}] preview decode failed: {e}")
+
+
 def run_characterization(
     adapter: ModelAdapter,
     weak_selfs: Dict[str, WeakSelf],
     cfg,
     arrays_dir: str = None,
+    preview_samples: int = 0,
 ) -> Dict[str, str]:
     """Run the two-pass characterization for each construction and dump its arrays.
 
@@ -113,6 +134,9 @@ def run_characterization(
         weak_selfs: mapping {construction_name: WeakSelf}.
         cfg: Phase0Config.
         arrays_dir: where to dump npz files (defaults to cfg.arrays_dir).
+        preview_samples: if >0 (or cfg.preview_samples), print decoded input vs
+            full/weak top-1 output for the first N samples of each construction as
+            the passes run. Live/ephemeral only — nothing extra is saved.
 
     Returns:
         dict {construction_name: npz_path} for every construction successfully dumped.
@@ -121,6 +145,8 @@ def run_characterization(
 
     if arrays_dir is None:
         arrays_dir = getattr(cfg, "arrays_dir", "phase0_arrays")
+    if not preview_samples:
+        preview_samples = int(getattr(cfg, "preview_samples", 0) or 0)
 
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -197,6 +223,10 @@ def run_characterization(
                     w_mask = w_logits[mdev].float()
 
                 ef, ew, ft, wt, dm = _reduce_position_arrays(f_mask, w_mask)
+
+                if si < preview_samples:
+                    _preview_sample(adapter, name, si, masked_ids, m, ft, wt)
+
                 ent_full.append(ef)
                 ent_weak.append(ew)
                 full_top1.append(ft)
