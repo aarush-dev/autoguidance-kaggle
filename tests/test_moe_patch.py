@@ -147,6 +147,44 @@ def test_reduce_moe_topk_handles_multiple_routers():
     assert model.r2.top_k == 8
 
 
+class _FakeConfig:
+    """Simulates DiffusionGemmaTextConfig: top_k_experts lives on config, not
+    on any router nn.Module."""
+    def __init__(self, top_k_experts: int = 8):
+        self.top_k_experts = top_k_experts
+
+
+class _ConfigOnlyMoEModel(nn.Module):
+    """Model whose MoE top-k is config-level only (no cached module attr) —
+    mirrors DiffusionGemma's real layout."""
+    def __init__(self):
+        super().__init__()
+        self.config = _FakeConfig(top_k_experts=8)
+        self.dense = _FakeDenseBlock()
+
+
+def test_reduce_moe_topk_patches_config_level_top_k():
+    """DiffusionGemma-style models keep top_k_experts on model.config, not on
+    a router module. reduce_moe_topk must still find and patch it."""
+    model = _ConfigOnlyMoEModel()
+    assert model.config.top_k_experts == 8
+    with reduce_moe_topk(model, new_top_k=4):
+        assert model.config.top_k_experts == 4, (
+            f"Expected config.top_k_experts patched to 4, got {model.config.top_k_experts}"
+        )
+    assert model.config.top_k_experts == 8, "config.top_k_experts not restored"
+
+
+def test_list_moe_modules_finds_config_level_top_k(capsys):
+    """list_moe_modules must report top_k_experts even when it only exists on
+    model.config (not any nn.Module)."""
+    model = _ConfigOnlyMoEModel()
+    list_moe_modules(model)
+    out = capsys.readouterr().out
+    assert "top_k_experts" in out, f"Expected 'top_k_experts' in output:\n{out}"
+    assert "8" in out, f"Expected value '8' in output:\n{out}"
+
+
 def test_reduce_moe_topk_restores_heterogeneous_values():
     """Each router is restored to its own original top_k, not a shared value."""
     class _HeteroRouter(nn.Module):

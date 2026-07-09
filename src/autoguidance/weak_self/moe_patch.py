@@ -6,6 +6,19 @@ can find, restoring the original values on exit. ``list_moe_modules(model)``
 prints what it would patch (debug aid for confirming the router layout at build
 time).
 
+CONFIG-LEVEL TOP-K
+------------------
+DiffusionGemma (transformers ``DiffusionGemmaTextConfig``) stores the router
+top-k as ``top_k_experts`` on the *config* object, not cached as an attribute
+on any router ``nn.Module``. The MoE block reads ``self.config.top_k_experts``
+fresh per forward call instead of caching it at ``__init__``. A pure
+module-attribute scan (``model.modules()``) will never find it, hence why
+``list_moe_modules`` reported nothing even though this model is MoE. So this
+module patches both: module attributes (for HF impls that do cache top-k on
+the router) and the model's config tree (``model.config``, plus
+``text_config``/``language_model_config`` nesting), covering DiffusionGemma
+and similar architectures.
+
 RENORM CAVEAT
 -------------
 Lowering top_k is only a *clean* weak self if the router re-softmaxes the gate
@@ -27,16 +40,41 @@ from contextlib import contextmanager
 import torch.nn as nn
 
 # Common attribute names that hold the per-token expert count across HF MoE impls.
+# "top_k_experts" is the confirmed name for DiffusionGemma (DiffusionGemmaTextConfig).
 _TOPK_ATTRS = ("top_k", "top_k_experts", "num_experts_per_tok")
 
 
+def _config_objects(model: nn.Module):
+    """Yield every config-like object that might hold the router top-k.
+
+    Covers ``model.config`` plus common nested sub-configs (``text_config``,
+    ``language_model_config``) used by multimodal/text backbones such as
+    DiffusionGemma, where the router top-k lives on the config rather than
+    being cached as a module attribute.
+    """
+    cfg = getattr(model, "config", None)
+    if cfg is None:
+        return
+    yield cfg
+    for attr in ("text_config", "language_model_config"):
+        sub = getattr(cfg, attr, None)
+        if sub is not None:
+            yield sub
+
+
 def _matched_modules(model: nn.Module):
-    """Yield (module, attr, value) for every submodule holding an int top-k > 1."""
+    """Yield (obj, attr, value) for every submodule or config object holding
+    an int top-k > 1."""
     for mod in model.modules():
         for attr in _TOPK_ATTRS:
             val = getattr(mod, attr, None)
             if isinstance(val, int) and not isinstance(val, bool) and val > 1:
                 yield mod, attr, val
+    for cfg in _config_objects(model):
+        for attr in _TOPK_ATTRS:
+            val = getattr(cfg, attr, None)
+            if isinstance(val, int) and not isinstance(val, bool) and val > 1:
+                yield cfg, attr, val
 
 
 def list_moe_modules(model: nn.Module) -> None:

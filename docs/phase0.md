@@ -61,6 +61,10 @@ Returns a dict with `check1`, `check2`, `check3`, `all_pass` verdict per constru
 
 **Rule: change a threshold by editing `configs/phase0.yaml` and re-running `thresholds.evaluate_dir`. Never re-run `run_characterization` to change a threshold.**
 
+**Data-quality guards (added after the mixed-model results.zip incident):**
+- **One model per arrays_dir.** `evaluate_dir` hard-fails if the `.npz` files carry more than one `meta["model"]`. Arrays from different models are not comparable and must never share a verdict table. The runner notebook namespaces outputs per model (`phase0_arrays/<MODEL>/`) so two model runs cannot collide in one dir.
+- **Degenerate-entropy gate.** If the full model's median per-position entropy is `< 1e-3` nats, Check 1 ("weak is more uncertain") cannot discriminate and is forced to FAIL with a `degenerate_full_entropy` flag. This is the signature of position misalignment — e.g. DiffusionGemma's block-diffusion canvas output being cropped/padded to the input length reads *known/context* slots (near one-hot) instead of the masked positions. Treat such a run as invalid, not as a real negative result, until the adapter's per-position alignment is verified on real weights.
+
 ### Step 3: Sweeps (cheap — re-runs weak pass only, full arrays reused from disk)
 
 `sweep.sweep_threshold(arrays_dir, grid, cfg)` sweeps threshold values over saved arrays — pure numpy, no model.

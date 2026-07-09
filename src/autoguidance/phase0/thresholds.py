@@ -17,6 +17,12 @@ from autoguidance.eval.entropy import entropy_stats_from_arrays
 from autoguidance.eval.agreement import agreement_stats_from_arrays
 from autoguidance.eval.error_position import error_position_stats_from_arrays
 
+# Below this median full-model entropy (nats) the model is ~deterministic at the
+# evaluated positions, so Check 1 ("weak is MORE uncertain") can't discriminate —
+# a symptom of position misalignment (e.g. DiffusionGemma canvas crop reading
+# known/context slots instead of masked ones). Flag it instead of trusting FAIL.
+_DEGENERATE_ENTROPY_NATS = 1e-3
+
 
 def evaluate_arrays(arrays: Dict, cfg) -> Dict:
     """Apply check1/check2/check3 to one construction's reduced arrays.
@@ -54,7 +60,22 @@ def evaluate_arrays(arrays: Dict, cfg) -> Dict:
         check3_precision=cfg.check3_precision,
     )
 
+    # Degenerate-entropy gate: if the full model is ~deterministic at the
+    # evaluated positions, Check 1 is uninformative (usually a position-alignment
+    # bug, not physics). Mark it and block all_pass so it can't silently "pass".
+    median_full = float(np.median(ent_full)) if ent_full.size else 0.0
+    degenerate = median_full < _DEGENERATE_ENTROPY_NATS
+    check1["median_full"] = median_full
+    check1["degenerate_full_entropy"] = degenerate
+    if degenerate:
+        check1["check1_pass"] = False
+
     all_pass = bool(check1["check1_pass"] and check2["check2_pass"] and check3["check3_pass"])
+
+    if degenerate:
+        print(f"  [{name}] WARNING: full-model entropy degenerate "
+              f"(median={median_full:.2e} nats < {_DEGENERATE_ENTROPY_NATS:.0e}); "
+              "Check 1 uninformative — suspect position misalignment, not a real result.")
 
     print(
         f"  [{name}] "
@@ -83,6 +104,26 @@ def evaluate_dir(arrays_dir: str, cfg) -> Dict[str, Dict]:
 
     names = list_constructions(arrays_dir)
     print(f"\n[Phase 0] evaluate_dir: {arrays_dir} -> {names}")
+
+    # Mixed-model guard: constructions run on different models are NOT comparable
+    # and must never share one verdict table. (This is exactly what produced the
+    # bogus results.zip: a LLaDA run and a DiffusionGemma run dumped into one dir.)
+    models = {}
+    for name in names:
+        try:
+            m = load_arrays(arrays_dir, name).get("meta", {})
+            models[name] = m.get("model", "?") if isinstance(m, dict) else "?"
+        except Exception:
+            models[name] = "?"
+    distinct = set(models.values()) - {"?"}
+    if len(distinct) > 1:
+        raise ValueError(
+            f"[Phase 0] arrays_dir {arrays_dir} mixes {len(distinct)} models "
+            f"{sorted(distinct)} across constructions {models}. These are NOT "
+            "comparable — dump each model's arrays to its own dir "
+            "(e.g. phase0_arrays/<model>/) and evaluate separately."
+        )
+
     verdicts: Dict[str, Dict] = {}
     for name in names:
         try:

@@ -140,10 +140,12 @@ def save_results(
             continue
         verdict_lines.append(f"\n### {name}: {'ALL PASS' if r['all_pass'] else 'FAIL'}")
         c1 = r["check1"]
+        degen = " [DEGENERATE full entropy — position misalignment suspected, result invalid]" \
+            if c1.get("degenerate_full_entropy") else ""
         verdict_lines.append(
             f"  Check 1 (Entropy): {'PASS' if c1['check1_pass'] else 'FAIL'} "
             f"— mean_full={c1['mean_full']:.3f} mean_weak={c1['mean_weak']:.3f} "
-            f"fraction_higher={c1['fraction_weak_higher']:.3f}"
+            f"fraction_higher={c1['fraction_weak_higher']:.3f}{degen}"
         )
         c2 = r["check2"]
         verdict_lines.append(
